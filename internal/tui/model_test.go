@@ -9,16 +9,12 @@ import (
 )
 
 // key creates a tea.KeyMsg for a key type.
-//
-//nolint:ireturn // Test helper must return tea.Msg interface
-func key(k tea.KeyType) tea.Msg {
+func key(k tea.KeyType) tea.KeyMsg {
 	return tea.KeyMsg{Type: k}
 }
 
 // keyRune creates a tea.KeyMsg for a rune.
-//
-//nolint:ireturn // Test helper must return tea.Msg interface
-func keyRune(r rune) tea.Msg {
+func keyRune(r rune) tea.KeyMsg {
 	return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}}
 }
 
@@ -99,7 +95,7 @@ func TestListViewNavigation(t *testing.T) {
 
 				var ok bool
 
-				model, ok = updated.(Model)
+				model, ok = updated.(*Model)
 				if !ok {
 					t.Fatal("Update did not return Model type")
 				}
@@ -161,7 +157,7 @@ func TestListViewActions(t *testing.T) {
 
 			var ok bool
 
-			model, ok = updated.(Model)
+			model, ok = updated.(*Model)
 			if !ok {
 				t.Fatal("Update did not return Model type")
 			}
@@ -241,7 +237,7 @@ func TestInputView(t *testing.T) {
 
 			var ok bool
 
-			model, ok = updated.(Model)
+			model, ok = updated.(*Model)
 			if !ok {
 				t.Fatal("Update did not return Model type")
 			}
@@ -254,7 +250,7 @@ func TestInputView(t *testing.T) {
 			for _, r := range tt.typedText {
 				u, _ := model.Update(keyRune(r))
 
-				model, ok = u.(Model)
+				model, ok = u.(*Model)
 				if !ok {
 					t.Fatal("Update did not return Model type")
 				}
@@ -265,7 +261,7 @@ func TestInputView(t *testing.T) {
 
 			updated, cmd = model.Update(tt.key)
 
-			model, ok = updated.(Model)
+			model, ok = updated.(*Model)
 			if !ok {
 				t.Fatal("Update did not return Model type")
 			}
@@ -370,7 +366,7 @@ func TestNameValidation(t *testing.T) {
 
 			var ok bool
 
-			model, ok = u.(Model)
+			model, ok = u.(*Model)
 			if !ok {
 				t.Fatal("Update did not return Model type")
 			}
@@ -379,7 +375,7 @@ func TestNameValidation(t *testing.T) {
 			for _, r := range tt.typedText {
 				upd, _ := model.Update(keyRune(r))
 
-				model, ok = upd.(Model)
+				model, ok = upd.(*Model)
 				if !ok {
 					t.Fatal("Update did not return Model type")
 				}
@@ -402,12 +398,11 @@ func TestNameValidation(t *testing.T) {
 
 			updated, cmd := model.Update(key(tea.KeyEnter))
 
-			model, ok = updated.(Model)
+			model, ok = updated.(*Model)
 			if !ok {
 				t.Fatal("Update did not return Model type")
 			}
 
-			//nolint:nestif // Test validation logic naturally has nested conditions
 			if tt.canSubmit {
 				// Should have set result and returned quit command
 				if model.Result() != tt.typedText {

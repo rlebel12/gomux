@@ -2,11 +2,15 @@ package tui
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/rlebel12/gomux/internal/gomux"
 )
+
+// errUnexpectedModel indicates Bubbletea returned an unexpected model type.
+var errUnexpectedModel = errors.New("unexpected model type")
 
 // Picker provides a terminal UI for session selection.
 type Picker struct{}
@@ -27,11 +31,9 @@ func (p *Picker) Pick(_ context.Context, sessions []gomux.Session) (string, erro
 		return "", fmt.Errorf("run picker: %w", err)
 	}
 
-	m, ok := finalModel.(Model)
+	m, ok := finalModel.(*Model)
 	if !ok {
-		// This should never happen unless Bubbletea returns wrong type
-		//nolint:err113 // Dynamic error is appropriate for unexpected internal state
-		return "", fmt.Errorf("run picker: unexpected model type %T", finalModel)
+		return "", fmt.Errorf("run picker: %w: %T", errUnexpectedModel, finalModel)
 	}
 
 	if m.Quitting() {

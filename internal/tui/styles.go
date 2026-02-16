@@ -2,32 +2,29 @@ package tui
 
 import "github.com/charmbracelet/lipgloss"
 
-//nolint:gochecknoglobals // UI styles are legitimately package-level constants
-var (
-	// titleStyle renders the "gomux" header text.
-	titleStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+// titleStyle renders the "gomux" header text.
+func titleStyle() lipgloss.Style { return lipgloss.NewStyle().Foreground(lipgloss.Color("240")) }
 
-	// selectedStyle renders the selected session name.
-	selectedStyle = lipgloss.NewStyle().Bold(true)
+// selectedStyle renders the selected session name.
+func selectedStyle() lipgloss.Style { return lipgloss.NewStyle().Bold(true) }
 
-	// normalStyle renders unselected session names.
-	normalStyle = lipgloss.NewStyle()
+// normalStyle renders unselected session names.
+func normalStyle() lipgloss.Style { return lipgloss.NewStyle() }
 
-	// metadataStyle renders secondary information (windows, attached, time).
-	metadataStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+// metadataStyle renders secondary information (windows, attached, time).
+func metadataStyle() lipgloss.Style { return lipgloss.NewStyle().Foreground(lipgloss.Color("240")) }
 
-	// attachedStyle renders the "attached" badge.
-	attachedStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("2"))
+// attachedStyle renders the "attached" badge.
+func attachedStyle() lipgloss.Style { return lipgloss.NewStyle().Foreground(lipgloss.Color("2")) }
 
-	// footerStyle renders the help bar at the bottom.
-	footerStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+// footerStyle renders the help bar at the bottom.
+func footerStyle() lipgloss.Style { return lipgloss.NewStyle().Foreground(lipgloss.Color("240")) }
 
-	// errorStyle renders validation error messages.
-	errorStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("1"))
+// errorStyle renders validation error messages.
+func errorStyle() lipgloss.Style { return lipgloss.NewStyle().Foreground(lipgloss.Color("1")) }
 
-	// warningStyle renders validation warning messages.
-	warningStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("3"))
-)
+// warningStyle renders validation warning messages.
+func warningStyle() lipgloss.Style { return lipgloss.NewStyle().Foreground(lipgloss.Color("3")) }
 
 const (
 	// cursorGlyphSelected is the cursor indicator for the selected item.

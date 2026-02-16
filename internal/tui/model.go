@@ -12,8 +12,6 @@ import (
 )
 
 // Model represents the Bubbletea TUI model with two views: list and input.
-//
-//nolint:recvcheck // Bubbletea interface requires value receivers; helper methods use pointers
 type Model struct {
 	sessions  []gomux.Session
 	result    string
@@ -26,12 +24,12 @@ type Model struct {
 }
 
 // newModel creates a new Model with the provided sessions.
-func newModel(sessions []gomux.Session) Model {
+func newModel(sessions []gomux.Session) *Model {
 	ti := textinput.New()
 	ti.Placeholder = "session name"
 	ti.Focus()
 
-	return Model{
+	return &Model{
 		sessions:  sessions,
 		cursor:    0,
 		inputMode: false,
@@ -40,16 +38,14 @@ func newModel(sessions []gomux.Session) Model {
 }
 
 // Init implements tea.Model.
-//
-//nolint:gocritic // Model must match tea.Model interface signature
-func (m Model) Init() tea.Cmd {
+func (m *Model) Init() tea.Cmd {
 	return nil
 }
 
 // Update implements tea.Model.
 //
-//nolint:gocritic,ireturn // Model must match tea.Model interface signature
-func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+//nolint:ireturn // tea.Model interface requires returning tea.Model
+func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if keyMsg, ok := msg.(tea.KeyMsg); ok {
 		if m.inputMode {
 			return m.handleInputKey(keyMsg)
@@ -62,9 +58,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // View implements tea.Model.
-//
-//nolint:gocritic // Model must match tea.Model interface signature
-func (m Model) View() string {
+func (m *Model) View() string {
 	if m.inputMode {
 		return m.renderInputView()
 	}
@@ -73,24 +67,18 @@ func (m Model) View() string {
 }
 
 // Result returns the selected or entered session name.
-//
-//nolint:gocritic // Exported accessor uses value receiver for consistency
-func (m Model) Result() string {
+func (m *Model) Result() string {
 	return m.result
 }
 
 // Quitting returns whether the user quit without selecting.
-//
-//nolint:gocritic // Exported accessor uses value receiver for consistency
-func (m Model) Quitting() bool {
+func (m *Model) Quitting() bool {
 	return m.quitting
 }
 
 // handleListKey handles key messages in list view mode.
-//
-//nolint:gocritic,ireturn // Must use value receiver to match Update signature
-func (m Model) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.Type { //nolint:exhaustive // Only handling specific keys
+func (m *Model) handleListKey(msg tea.KeyMsg) (*Model, tea.Cmd) {
+	switch msg.Type {
 	case tea.KeyRunes:
 		if len(msg.Runes) > 0 {
 			switch msg.Runes[0] {
@@ -120,16 +108,16 @@ func (m Model) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyCtrlC:
 		return m.quit()
+
+	default:
 	}
 
 	return m, nil
 }
 
 // handleInputKey handles key messages in input view mode.
-//
-//nolint:gocritic,ireturn // Must use value receiver to match Update signature
-func (m Model) handleInputKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.Type { //nolint:exhaustive // Only handling specific keys
+func (m *Model) handleInputKey(msg tea.KeyMsg) (*Model, tea.Cmd) {
+	switch msg.Type {
 	case tea.KeyEnter:
 		// Validate and submit if valid
 		value := m.textInput.Value()
@@ -203,9 +191,7 @@ func (m *Model) moveCursorUp() {
 }
 
 // quit marks the model as quitting and returns the quit command.
-//
-//nolint:gocritic,ireturn // Must use value receiver to match Update signature
-func (m Model) quit() (tea.Model, tea.Cmd) {
+func (m *Model) quit() (*Model, tea.Cmd) {
 	m.quitting = true
 	return m, tea.Quit
 }
@@ -219,9 +205,7 @@ func (m *Model) cancelInput() {
 }
 
 // renderListView renders the list view with session names.
-//
-//nolint:gocritic // Model uses value receiver to match tea.Model interface pattern
-func (m Model) renderListView() string {
+func (m *Model) renderListView() string {
 	var b strings.Builder
 
 	m.renderTitle(&b)
@@ -237,9 +221,9 @@ func (m Model) renderListView() string {
 
 		// Session name
 		if i == m.cursor {
-			b.WriteString(selectedStyle.Render(session.Name))
+			b.WriteString(selectedStyle().Render(session.Name))
 		} else {
-			b.WriteString(normalStyle.Render(session.Name))
+			b.WriteString(normalStyle().Render(session.Name))
 		}
 
 		b.WriteString("\n")
@@ -248,7 +232,7 @@ func (m Model) renderListView() string {
 		b.WriteString("  ")
 
 		metadata := m.formatMetadata(session)
-		b.WriteString(metadataStyle.Render(metadata))
+		b.WriteString(metadataStyle().Render(metadata))
 		b.WriteString("\n\n")
 	}
 
@@ -258,9 +242,7 @@ func (m Model) renderListView() string {
 }
 
 // renderInputView renders the input view for creating a new session.
-//
-//nolint:gocritic // Model uses value receiver to match tea.Model interface pattern
-func (m Model) renderInputView() string {
+func (m *Model) renderInputView() string {
 	var b strings.Builder
 
 	m.renderTitle(&b)
@@ -272,10 +254,10 @@ func (m Model) renderInputView() string {
 
 	// Error or warning
 	if m.err != "" {
-		b.WriteString(errorStyle.Render(m.err))
+		b.WriteString(errorStyle().Render(m.err))
 		b.WriteString("\n\n")
 	} else if m.warning != "" {
-		b.WriteString(warningStyle.Render(m.warning))
+		b.WriteString(warningStyle().Render(m.warning))
 		b.WriteString("\n\n")
 	}
 
@@ -285,9 +267,7 @@ func (m Model) renderInputView() string {
 }
 
 // formatMetadata creates the metadata line for a session.
-//
-//nolint:gocritic // Model uses value receiver to match tea.Model interface pattern
-func (m Model) formatMetadata(session gomux.Session) string {
+func (m *Model) formatMetadata(session gomux.Session) string {
 	var parts []string
 
 	// Windows count
@@ -299,7 +279,7 @@ func (m Model) formatMetadata(session gomux.Session) string {
 
 	// Attached badge
 	if session.Attached {
-		parts = append(parts, attachedStyle.Render("attached"))
+		parts = append(parts, attachedStyle().Render("attached"))
 	}
 
 	// Created time
@@ -343,16 +323,12 @@ func relativeTime(created, now time.Time) string {
 }
 
 // renderTitle writes the "gomux" header to the builder.
-//
-//nolint:gocritic // Model uses value receiver to match tea.Model interface pattern
-func (m Model) renderTitle(b *strings.Builder) {
-	b.WriteString(titleStyle.Render("gomux"))
+func (m *Model) renderTitle(b *strings.Builder) {
+	b.WriteString(titleStyle().Render("gomux"))
 	b.WriteString("\n\n")
 }
 
 // renderFooter writes the footer help text to the builder.
-//
-//nolint:gocritic // Model uses value receiver to match tea.Model interface pattern
-func (m Model) renderFooter(b *strings.Builder, text string) {
-	b.WriteString(footerStyle.Render(text))
+func (m *Model) renderFooter(b *strings.Builder, text string) {
+	b.WriteString(footerStyle().Render(text))
 }
