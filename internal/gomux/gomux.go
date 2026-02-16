@@ -4,6 +4,7 @@ package gomux
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 )
 
@@ -53,8 +54,49 @@ func New(lister SessionLister, picker SessionPicker, executor SessionExecutor) *
 }
 
 // Run executes the session selection and attachment workflow.
-// The full orchestration logic will be implemented in Phase 02.
-func (a *App) Run(_ context.Context, _ string) error {
-	// Stub implementation - Phase 02 adds the real logic
+//
+// Mode routing:
+//   - sessionName non-empty → bypass picker, exec directly into named session
+//   - sessionName empty, zero sessions → exec into DefaultSessionName (skip TUI)
+//   - sessionName empty, 1+ sessions → list sessions → present picker → exec into selection
+//
+// Returns nil if the user quits without selecting (ErrNoSelection is handled internally).
+func (a *App) Run(ctx context.Context, sessionName string) error {
+	// Direct mode: bypass lister and picker, exec directly
+	if sessionName != "" {
+		return a.execSession(ctx, sessionName)
+	}
+
+	// List existing sessions
+	sessions, err := a.lister.ListSessions(ctx)
+	if err != nil {
+		return fmt.Errorf("list sessions: %w", err)
+	}
+
+	// Empty state: exec into DefaultSessionName (skip picker)
+	if len(sessions) == 0 {
+		return a.execSession(ctx, DefaultSessionName)
+	}
+
+	// TUI mode: present picker and exec chosen session
+	chosen, err := a.picker.Pick(ctx, sessions)
+	if err != nil {
+		// User quit: clean exit
+		if errors.Is(err, ErrNoSelection) {
+			return nil
+		}
+
+		return fmt.Errorf("pick session: %w", err)
+	}
+
+	return a.execSession(ctx, chosen)
+}
+
+// execSession wraps executor calls with consistent error handling.
+func (a *App) execSession(ctx context.Context, sessionName string) error {
+	if err := a.executor.ExecIntoSession(ctx, sessionName); err != nil {
+		return fmt.Errorf("exec session: %w", err)
+	}
+
 	return nil
 }

@@ -76,6 +76,7 @@ linters:
           - gosec
           - funlen
           - gocognit
+          - govet
       - path: cmd/.*/main\.go
         linters:
           - cyclop
