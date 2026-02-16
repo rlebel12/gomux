@@ -2,7 +2,7 @@
 
 **Depends on:** None
 **Phase Type:** Infrastructure
-**Status:** Pending
+**Status:** Complete
 
 <!-- Infrastructure phase: GREEN-REFACTOR only (no testable logic) -->
 <!-- Status progression: Pending -> GREEN -> Complete -->
@@ -17,7 +17,7 @@
 
 ### Gate: EXISTING TESTS
 
-- [ ] Confirmed: no existing test suite to break
+- [x] Confirmed: no existing test suite to break
 
 ---
 
@@ -86,12 +86,12 @@ Copy the reference configurations from the Go pattern docs:
 
 ### Gate: GREEN
 
-- [ ] `go mod init` succeeds
-- [ ] `go build ./internal/gomux/` compiles without errors
-- [ ] Session struct, all three interfaces, App struct, and New constructor are defined
-- [ ] ErrNoSelection and DefaultSessionName are exported
-- [ ] `lefthook.yml` and `.golangci.yml` are in place
-- [ ] `lefthook install` succeeds
+- [x] `go mod init` succeeds
+- [x] `go build ./internal/gomux/` compiles without errors
+- [x] Session struct, all three interfaces, App struct, and New constructor are defined
+- [x] ErrNoSelection and DefaultSessionName are exported
+- [x] `lefthook.yml` and `.golangci.yml` are in place
+- [x] `lefthook install` succeeds
 
 ---
 
@@ -107,9 +107,9 @@ Copy the reference configurations from the Go pattern docs:
 
 ### Gate: REFACTOR
 
-- [ ] All exported types and functions have godoc comments
-- [ ] Interface method signatures match the design summary exactly
-- [ ] No unnecessary dependencies in go.mod
+- [x] All exported types and functions have godoc comments
+- [x] Interface method signatures match the design summary exactly
+- [x] No unnecessary dependencies in go.mod
 
 ---
 

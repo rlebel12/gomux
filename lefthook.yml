@@ -1,0 +1,34 @@
+# lefthook.yml
+remotes:
+  - git_url: git@github.com:rlebel12/lefthook.git
+    ref: main
+    refetch_frequency: 168h  # Weekly
+    configs:
+      - lefthook.yml
+
+pre-commit:
+  piped: true
+  jobs:
+    # === Go Fixers (sequential, after hygiene) ===
+    - name: gofumpt
+      glob: "*.go"
+      run: gofumpt -extra -w {staged_files}
+      stage_fixed: true
+
+    - name: go-mod-tidy
+      glob: "go.{mod,sum}"
+      run: go mod tidy
+      stage_fixed: true
+
+    # === Go Checkers ===
+    - name: go-checks
+      group:
+        parallel: true
+        jobs:
+          - name: go-build
+            glob: "*.go"
+            run: go build -o /dev/null ./...
+
+          - name: golangci-lint
+            glob: "*.go"
+            run: golangci-lint run --config=.golangci.yml --new
