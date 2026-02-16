@@ -20,7 +20,7 @@
 | [04-tmux-client](phases/04-tmux-client.md) | Tmux Client wiring: NewClient, ListSessions, ExecIntoSession | Phase 03 | Complete |
 | [05-tui-model](phases/05-tui-model.md) | Bubbletea Model with list view, input view, and name validation | Phase 01 | Complete |
 | [06-tui-picker](phases/06-tui-picker.md) | Picker.Pick public API, lipgloss styling, view rendering | Phase 05 | Complete |
-| [07-main](phases/07-main.md) | cmd/gomux/main.go entrypoint wiring | Phase 02, 04, 06 | Pending |
+| [07-main](phases/07-main.md) | cmd/gomux/main.go entrypoint wiring | Phase 02, 04, 06 | Complete |
 
 <!-- Status values: Pending | RED | GREEN | Complete -->
 
@@ -85,8 +85,8 @@ When phases are marked for parallel execution, they execute in separate git work
 
 ## Status
 
-**Progress:** 6/7 phases complete
-**Current Phase:** Phases 01-06 complete; starting Phase 07
+**Progress:** 7/7 phases complete
+**Current Phase:** All phases complete
 **Blocked:** None
 
 ---
