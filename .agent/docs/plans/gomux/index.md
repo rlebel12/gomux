@@ -16,7 +16,7 @@
 |-------|-------------|------------|--------|
 | [01-domain](phases/01-domain.md) | Domain types, interfaces, sentinel errors, and project scaffolding | None | Complete |
 | [02-orchestrator](phases/02-orchestrator.md) | App.Run orchestration logic with fake-driven tests | Phase 01 | Complete |
-| [03-tmux-parsing](phases/03-tmux-parsing.md) | parseSessions function for tmux format string output | Phase 01 | Pending |
+| [03-tmux-parsing](phases/03-tmux-parsing.md) | parseSessions function for tmux format string output | Phase 01 | Complete |
 | [04-tmux-client](phases/04-tmux-client.md) | Tmux Client wiring: NewClient, ListSessions, ExecIntoSession | Phase 03 | Pending |
 | [05-tui-model](phases/05-tui-model.md) | Bubbletea Model with list view, input view, and name validation | Phase 01 | Pending |
 | [06-tui-picker](phases/06-tui-picker.md) | Picker.Pick public API, lipgloss styling, view rendering | Phase 05 | Pending |
@@ -85,8 +85,8 @@ When phases are marked for parallel execution, they execute in separate git work
 
 ## Status
 
-**Progress:** 2/7 phases complete
-**Current Phase:** Phase 02 complete, Phases 03 and 05 in progress (parallel)
+**Progress:** 3/7 phases complete
+**Current Phase:** Phases 02, 03 complete; merging Phase 05
 **Blocked:** None
 
 ---
