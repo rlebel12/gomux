@@ -2,7 +2,9 @@
 package tui
 
 import (
+	"fmt"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -63,8 +65,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 //
 //nolint:gocritic // Model must match tea.Model interface signature
 func (m Model) View() string {
-	// Stub for this phase - full rendering in Phase 06
-	return ""
+	if m.inputMode {
+		return m.renderInputView()
+	}
+
+	return m.renderListView()
 }
 
 // Result returns the selected or entered session name.
@@ -211,4 +216,143 @@ func (m *Model) cancelInput() {
 	m.textInput.SetValue("")
 	m.err = ""
 	m.warning = ""
+}
+
+// renderListView renders the list view with session names.
+//
+//nolint:gocritic // Model uses value receiver to match tea.Model interface pattern
+func (m Model) renderListView() string {
+	var b strings.Builder
+
+	m.renderTitle(&b)
+
+	// Session list
+	for i, session := range m.sessions {
+		// Cursor glyph
+		if i == m.cursor {
+			b.WriteString(cursorGlyphSelected)
+		} else {
+			b.WriteString(cursorGlyphUnselected)
+		}
+
+		// Session name
+		if i == m.cursor {
+			b.WriteString(selectedStyle.Render(session.Name))
+		} else {
+			b.WriteString(normalStyle.Render(session.Name))
+		}
+
+		b.WriteString("\n")
+
+		// Metadata line
+		b.WriteString("  ")
+
+		metadata := m.formatMetadata(session)
+		b.WriteString(metadataStyle.Render(metadata))
+		b.WriteString("\n\n")
+	}
+
+	m.renderFooter(&b, "↑↓ navigate · enter attach · n new · q quit")
+
+	return b.String()
+}
+
+// renderInputView renders the input view for creating a new session.
+//
+//nolint:gocritic // Model uses value receiver to match tea.Model interface pattern
+func (m Model) renderInputView() string {
+	var b strings.Builder
+
+	m.renderTitle(&b)
+
+	// Input label
+	b.WriteString("New session name:\n")
+	b.WriteString(m.textInput.View())
+	b.WriteString("\n\n")
+
+	// Error or warning
+	if m.err != "" {
+		b.WriteString(errorStyle.Render(m.err))
+		b.WriteString("\n\n")
+	} else if m.warning != "" {
+		b.WriteString(warningStyle.Render(m.warning))
+		b.WriteString("\n\n")
+	}
+
+	m.renderFooter(&b, "enter confirm · esc cancel")
+
+	return b.String()
+}
+
+// formatMetadata creates the metadata line for a session.
+//
+//nolint:gocritic // Model uses value receiver to match tea.Model interface pattern
+func (m Model) formatMetadata(session gomux.Session) string {
+	var parts []string
+
+	// Windows count
+	if session.Windows == 1 {
+		parts = append(parts, "1 window")
+	} else {
+		parts = append(parts, fmt.Sprintf("%d windows", session.Windows))
+	}
+
+	// Attached badge
+	if session.Attached {
+		parts = append(parts, attachedStyle.Render("attached"))
+	}
+
+	// Created time
+	relTime := relativeTime(session.Created, time.Now())
+	parts = append(parts, "created "+relTime)
+
+	return strings.Join(parts, " · ")
+}
+
+// relativeTime returns a human-readable relative time string.
+func relativeTime(created, now time.Time) string {
+	const (
+		hoursPerDay = 24
+		daysPerWeek = 7
+	)
+
+	duration := now.Sub(created)
+
+	if duration < time.Minute {
+		return "just now"
+	}
+
+	if duration < time.Hour {
+		minutes := int(duration.Minutes())
+		return fmt.Sprintf("%dm ago", minutes)
+	}
+
+	if duration < hoursPerDay*time.Hour {
+		hours := int(duration.Hours())
+		return fmt.Sprintf("%dh ago", hours)
+	}
+
+	if duration < daysPerWeek*hoursPerDay*time.Hour {
+		days := int(duration.Hours() / hoursPerDay)
+		return fmt.Sprintf("%dd ago", days)
+	}
+
+	weeks := int(duration.Hours() / (hoursPerDay * daysPerWeek))
+
+	return fmt.Sprintf("%dw ago", weeks)
+}
+
+// renderTitle writes the "gomux" header to the builder.
+//
+//nolint:gocritic // Model uses value receiver to match tea.Model interface pattern
+func (m Model) renderTitle(b *strings.Builder) {
+	b.WriteString(titleStyle.Render("gomux"))
+	b.WriteString("\n\n")
+}
+
+// renderFooter writes the footer help text to the builder.
+//
+//nolint:gocritic // Model uses value receiver to match tea.Model interface pattern
+func (m Model) renderFooter(b *strings.Builder, text string) {
+	b.WriteString(footerStyle.Render(text))
 }

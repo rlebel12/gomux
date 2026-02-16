@@ -19,7 +19,7 @@
 | [03-tmux-parsing](phases/03-tmux-parsing.md) | parseSessions function for tmux format string output | Phase 01 | Complete |
 | [04-tmux-client](phases/04-tmux-client.md) | Tmux Client wiring: NewClient, ListSessions, ExecIntoSession | Phase 03 | Complete |
 | [05-tui-model](phases/05-tui-model.md) | Bubbletea Model with list view, input view, and name validation | Phase 01 | Complete |
-| [06-tui-picker](phases/06-tui-picker.md) | Picker.Pick public API, lipgloss styling, view rendering | Phase 05 | Pending |
+| [06-tui-picker](phases/06-tui-picker.md) | Picker.Pick public API, lipgloss styling, view rendering | Phase 05 | Complete |
 | [07-main](phases/07-main.md) | cmd/gomux/main.go entrypoint wiring | Phase 02, 04, 06 | Pending |
 
 <!-- Status values: Pending | RED | GREEN | Complete -->
@@ -85,8 +85,8 @@ When phases are marked for parallel execution, they execute in separate git work
 
 ## Status
 
-**Progress:** 5/7 phases complete
-**Current Phase:** Phases 01-05 complete; starting Phase 06
+**Progress:** 6/7 phases complete
+**Current Phase:** Phases 01-06 complete; starting Phase 07
 **Blocked:** None
 
 ---
