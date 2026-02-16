@@ -26,6 +26,7 @@ linters:
     - gocyclo  # replaced by cyclop
     # Deprecated
     - wsl
+    - wsl_v5
   settings:
     errcheck:
       check-type-assertions: true

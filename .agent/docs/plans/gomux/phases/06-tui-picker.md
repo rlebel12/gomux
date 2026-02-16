@@ -2,7 +2,7 @@
 
 **Depends on:** Phase 05
 **Phase Type:** Infrastructure
-**Status:** Pending
+**Status:** Complete
 
 <!-- Infrastructure phase: GREEN-REFACTOR only -->
 <!-- Picker.Pick is thin delegation to tea.Program. -->
@@ -19,8 +19,8 @@
 
 ### Gate: EXISTING TESTS
 
-- [ ] Existing test suite executed
-- [ ] All tests PASS before proceeding
+- [x] Existing test suite executed
+- [x] All tests PASS before proceeding
 
 ---
 
@@ -118,11 +118,11 @@
 
 ### Gate: GREEN
 
-- [ ] All existing tests still PASS
-- [ ] Test command: `go test ./internal/tui/ -v`
-- [ ] `go build ./internal/tui/` compiles without errors
-- [ ] Picker satisfies the gomux.SessionPicker interface
-- [ ] View renders correctly for list view and input view (manual verification)
+- [x] All existing tests still PASS
+- [x] Test command: `go test ./internal/tui/ -v`
+- [x] `go build ./internal/tui/` compiles without errors
+- [x] Picker satisfies the gomux.SessionPicker interface
+- [x] View renders correctly for list view and input view (manual verification)
 
 ---
 
@@ -139,10 +139,10 @@
 
 ### Gate: REFACTOR
 
-- [ ] Reviewed for code duplication and extracted common patterns
-- [ ] Variable and function names are clear and descriptive
-- [ ] Complex logic simplified where possible
-- [ ] Error messages are helpful and actionable
+- [x] Reviewed for code duplication and extracted common patterns
+- [x] Variable and function names are clear and descriptive
+- [x] Complex logic simplified where possible
+- [x] Error messages are helpful and actionable
 
 ---
 
