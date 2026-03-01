@@ -10,6 +10,7 @@ Updated the TUI picker to support a two-section list: existing tmux sessions abo
 - `internal/tui/picker.go` — Updated Pick signature to accept profiles and return gomux.Selection
 - `internal/tui/styles.go` — Added dividerStyle for the "── Profiles ──" section header
 - `internal/tui/model_test.go` — Updated existing tests for new signatures; added navigation, selection, rendering, and input mode tests with profiles
+- `cmd/gomux/main.go` — Removed legacyPicker shim; wired tui.NewPicker() directly
 
 ## Tests
 

@@ -33,30 +33,14 @@ func run() error {
 		sessionName = os.Args[1]
 	}
 
-	// TODO(phase-04): replace legacyPicker with updated tui.Picker once Phase 04 is complete.
 	// TODO(phase-06): replace noopProfileLoader and noopSessionCreator with real implementations.
-	app := gomux.New(client, &legacyPicker{tui.NewPicker()}, client, noopProfileLoader{}, noopSessionCreator{})
+	app := gomux.New(client, tui.NewPicker(), client, noopProfileLoader{}, noopSessionCreator{})
 
 	if err := app.Run(ctx, sessionName); err != nil {
 		return fmt.Errorf("run app: %w", err)
 	}
 
 	return nil
-}
-
-// legacyPicker adapts the existing tui.Picker (old signature) to the updated SessionPicker interface.
-// TODO(phase-04): remove once tui.Picker is updated in Phase 04.
-type legacyPicker struct {
-	inner *tui.Picker
-}
-
-func (lp *legacyPicker) Pick(ctx context.Context, sessions []gomux.Session, _ []gomux.Profile) (gomux.Selection, error) {
-	name, err := lp.inner.Pick(ctx, sessions)
-	if err != nil {
-		return gomux.Selection{}, err
-	}
-
-	return gomux.Selection{Name: name, IsProfile: false}, nil
 }
 
 // noopProfileLoader is a temporary stub until Phase 06 wires the real ProfileLoader.

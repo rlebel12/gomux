@@ -26,6 +26,9 @@ func errorStyle() lipgloss.Style { return lipgloss.NewStyle().Foreground(lipglos
 // warningStyle renders validation warning messages.
 func warningStyle() lipgloss.Style { return lipgloss.NewStyle().Foreground(lipgloss.Color("3")) }
 
+// dividerStyle renders the section divider between sessions and profiles.
+func dividerStyle() lipgloss.Style { return lipgloss.NewStyle().Foreground(lipgloss.Color("240")) }
+
 const (
 	// cursorGlyphSelected is the cursor indicator for the selected item.
 	cursorGlyphSelected = "▸ "
