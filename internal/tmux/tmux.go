@@ -16,6 +16,9 @@ import (
 	"github.com/rlebel12/gomux/internal/gomux"
 )
 
+// commandRunner executes a tmux subcommand and returns any error.
+type commandRunner func(ctx context.Context, tmuxPath string, args ...string) error
+
 var (
 	// ErrInvalidFieldCount is returned when a line doesn't have the expected number of fields.
 	ErrInvalidFieldCount = errors.New("invalid field count")
@@ -108,6 +111,7 @@ func parseSessions(output string) ([]gomux.Session, error) {
 
 // Client provides integration with the tmux command-line tool.
 type Client struct {
+	runCmd   commandRunner
 	tmuxPath string
 }
 
@@ -121,7 +125,22 @@ func NewClient() (*Client, error) {
 		return nil, fmt.Errorf("tmux not found on PATH: %w", err)
 	}
 
-	return &Client{tmuxPath: tmuxPath}, nil
+	return &Client{
+		tmuxPath: tmuxPath,
+		runCmd:   defaultCommandRunner,
+	}, nil
+}
+
+// defaultCommandRunner executes a tmux subcommand using exec.CommandContext.
+func defaultCommandRunner(ctx context.Context, tmuxPath string, args ...string) error {
+	//nolint:gosec // tmuxPath is validated via exec.LookPath in NewClient
+	cmd := exec.CommandContext(ctx, tmuxPath, args...)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%w: %s", err, bytes.TrimSpace(output))
+	}
+
+	return nil
 }
 
 // ListSessions retrieves all tmux sessions using the list-sessions command.
@@ -175,4 +194,103 @@ func (c *Client) ExecIntoSession(_ context.Context, sessionName string) error {
 
 	// Never reached on success (process replaced)
 	return nil
+}
+
+// CreateSessionFromProfile creates a tmux session configured according to the given profile.
+//
+// The session is built by issuing a sequence of tmux subcommands:
+//  1. new-session for the first window
+//  2. new-window for each subsequent window
+//  3. split-window for each pane within a window
+//  4. send-keys for any startup command on a window or pane
+//  5. select-window to focus the first window at the end
+//
+// If any command fails, a best-effort kill-session is attempted to clean up the
+// partial session before returning the error.
+func (c *Client) CreateSessionFromProfile(ctx context.Context, profile gomux.Profile) error {
+	cmds := buildSessionCommands(profile)
+
+	for _, args := range cmds {
+		if err := c.runCmd(ctx, c.tmuxPath, args...); err != nil {
+			// Best-effort cleanup: include kill error as secondary context if it occurs.
+			killErr := c.runCmd(ctx, c.tmuxPath, "kill-session", "-t", profile.Name)
+			return fmt.Errorf("create session %q: %w", profile.Name, errors.Join(err, killErr))
+		}
+	}
+
+	return nil
+}
+
+const (
+	splitHorizontal = "-h"
+	splitVertical   = "-v"
+)
+
+// buildSessionCommands constructs the ordered sequence of tmux argument lists for creating a session.
+func buildSessionCommands(profile gomux.Profile) [][]string {
+	var cmds [][]string
+
+	for i, window := range profile.Windows {
+		winTarget := fmt.Sprintf("%s:%d", profile.Name, i)
+
+		if i == 0 {
+			// First window: new-session creates the session and first window together
+			cmds = append(cmds, appendWindowFlags(
+				[]string{"new-session", "-d", "-s", profile.Name},
+				window,
+			))
+		} else {
+			// Subsequent windows: new-window adds a window to an existing session
+			cmds = append(cmds, appendWindowFlags(
+				[]string{"new-window", "-t", profile.Name},
+				window,
+			))
+		}
+
+		// Window startup command
+		if window.Command != "" {
+			cmds = append(cmds, []string{"send-keys", "-t", winTarget, window.Command, "Enter"})
+		}
+
+		// Panes within this window
+		for _, pane := range window.Panes {
+			splitArgs := []string{"split-window", splitFlagFor(pane.Split), "-t", winTarget}
+			if pane.Dir != "" {
+				splitArgs = append(splitArgs, "-c", pane.Dir)
+			}
+			cmds = append(cmds, splitArgs)
+
+			if pane.Command != "" {
+				cmds = append(cmds, []string{"send-keys", "-t", winTarget, pane.Command, "Enter"})
+			}
+		}
+	}
+
+	// Focus first window
+	cmds = append(cmds, []string{"select-window", "-t", profile.Name + ":0"})
+
+	return cmds
+}
+
+// appendWindowFlags appends the optional -n (name) and -c (dir) flags for a window to args.
+func appendWindowFlags(args []string, window gomux.Window) []string {
+	if window.Name != "" {
+		args = append(args, "-n", window.Name)
+	}
+
+	if window.Dir != "" {
+		args = append(args, "-c", window.Dir)
+	}
+
+	return args
+}
+
+// splitFlagFor returns the tmux split-window flag for the given split direction.
+// Empty or unrecognized values default to vertical.
+func splitFlagFor(split string) string {
+	if split == "horizontal" {
+		return splitHorizontal
+	}
+
+	return splitVertical
 }
