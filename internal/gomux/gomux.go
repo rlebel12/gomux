@@ -49,6 +49,9 @@ const DefaultSessionName = "default"
 // ErrNoSelection is returned by SessionPicker when the user quits without selecting a session.
 var ErrNoSelection = errors.New("no session selected")
 
+// ErrProfileNotFound is returned when a selected profile name cannot be found in the loaded profiles.
+var ErrProfileNotFound = errors.New("profile not found")
+
 // SessionLister lists available tmux sessions.
 type SessionLister interface {
 	ListSessions(ctx context.Context) ([]Session, error)
@@ -149,7 +152,7 @@ func (a *App) Run(ctx context.Context, sessionName string) error {
 	if selection.IsProfile {
 		profile, found := findProfile(allProfiles, selection.Name)
 		if !found {
-			return fmt.Errorf("profile not found: %s", selection.Name)
+			return fmt.Errorf("pick session: %w: %s", ErrProfileNotFound, selection.Name)
 		}
 
 		if err := a.creator.CreateSessionFromProfile(ctx, profile); err != nil {

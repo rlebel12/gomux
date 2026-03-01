@@ -15,8 +15,8 @@
 
 ### Gate: EXISTING TESTS
 
-- [ ] Existing test suite executed across all packages
-- [ ] All tests PASS before proceeding
+- [x] Existing test suite executed across all packages
+- [x] All tests PASS before proceeding
 
 ---
 
@@ -47,8 +47,8 @@ If all tests already pass, this phase is a no-op verification.
 
 ### Gate: GREEN
 
-- [ ] `go test ./... -v` passes with zero failures
-- [ ] No integration gaps found, or gaps are fixed
+- [x] `go test ./... -v` passes with zero failures
+- [x] No integration gaps found, or gaps are fixed
 
 ---
 
@@ -64,9 +64,9 @@ If all tests already pass, this phase is a no-op verification.
 
 ### Gate: REFACTOR
 
-- [ ] Error messages form readable chains across package boundaries
-- [ ] Nil slice handling is consistent (empty slice preferred over nil)
-- [ ] All empty state combinations verified
+- [x] Error messages form readable chains across package boundaries
+- [x] Nil slice handling is consistent (empty slice preferred over nil)
+- [x] All empty state combinations verified
 
 ---
 

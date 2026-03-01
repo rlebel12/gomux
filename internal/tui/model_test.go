@@ -428,26 +428,33 @@ func TestNameValidation(t *testing.T) {
 				t.Fatal("Update did not return Model type")
 			}
 
-			if tt.canSubmit {
-				// Should have set result and returned quit command
-				if model.Result().Name != tt.typedText {
-					t.Errorf("expected result name %q, got %q", tt.typedText, model.Result().Name)
-				}
-
-				if cmd == nil {
-					t.Error("expected tea.Quit command")
-				}
-			} else {
-				// Should still be in input mode
-				if !model.inputMode {
-					t.Error("expected to still be in input mode (submission blocked)")
-				}
-
-				if model.Result().Name != "" {
-					t.Error("expected no result (submission blocked)")
-				}
-			}
+			verifySubmitResult(t, model, cmd, tt.typedText, tt.canSubmit)
 		})
+	}
+}
+
+// verifySubmitResult checks whether a submit action produced the expected outcome.
+func verifySubmitResult(t *testing.T, model *Model, cmd tea.Cmd, typedText string, canSubmit bool) {
+	t.Helper()
+
+	if canSubmit {
+		if model.Result().Name != typedText {
+			t.Errorf("expected result name %q, got %q", typedText, model.Result().Name)
+		}
+
+		if cmd == nil {
+			t.Error("expected tea.Quit command")
+		}
+
+		return
+	}
+
+	if !model.inputMode {
+		t.Error("expected to still be in input mode (submission blocked)")
+	}
+
+	if model.Result().Name != "" {
+		t.Error("expected no result (submission blocked)")
 	}
 }
 

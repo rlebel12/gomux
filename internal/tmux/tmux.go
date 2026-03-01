@@ -161,7 +161,10 @@ func (c *Client) ListSessions(ctx context.Context) ([]gomux.Session, error) {
 		// tmux exits with non-zero when no server is running or no sessions exist
 		// This is expected - return empty slice, not an error
 		stderrStr := stderr.String()
-		if strings.Contains(stderrStr, "no server running") || strings.Contains(stderrStr, "no sessions") || strings.Contains(stderrStr, "error connecting to") {
+		noSessionsRunning := strings.Contains(stderrStr, "no server running") ||
+			strings.Contains(stderrStr, "no sessions") ||
+			strings.Contains(stderrStr, "error connecting to")
+		if noSessionsRunning {
 			return []gomux.Session{}, nil
 		}
 

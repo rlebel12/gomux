@@ -14,6 +14,8 @@ import (
 var (
 	errTmuxServerNotRunning = errors.New("tmux server not running")
 	errTmuxBinaryNotFound   = errors.New("tmux binary not found")
+	errReadProfilesFailed   = errors.New("failed to read profiles file")
+	errCreateSessionFailed  = errors.New("failed to create tmux session")
 )
 
 // Test fakes
@@ -37,7 +39,9 @@ type fakePicker struct {
 	called           bool
 }
 
-func (f *fakePicker) Pick(_ context.Context, sessions []gomux.Session, profiles []gomux.Profile) (gomux.Selection, error) {
+func (f *fakePicker) Pick(
+	_ context.Context, sessions []gomux.Session, profiles []gomux.Profile,
+) (gomux.Selection, error) {
 	f.called = true
 	f.received = sessions
 	f.receivedProfiles = profiles
@@ -385,7 +389,7 @@ func TestAppRun_PickerReceivesSessions(t *testing.T) {
 func TestAppRun_ProfileLoaderErrorPropagation(t *testing.T) {
 	t.Parallel()
 
-	loaderErr := errors.New("failed to read profiles file")
+	loaderErr := errReadProfilesFailed
 	lister := &fakeLister{
 		sessions: []gomux.Session{
 			{Name: "dev", Windows: 1, Created: time.Now()},
@@ -418,7 +422,7 @@ func TestAppRun_ProfileLoaderErrorPropagation(t *testing.T) {
 func TestAppRun_SessionCreatorErrorPropagation(t *testing.T) {
 	t.Parallel()
 
-	creatorErr := errors.New("failed to create tmux session")
+	creatorErr := errCreateSessionFailed
 	lister := &fakeLister{
 		sessions: []gomux.Session{
 			{Name: "existing", Windows: 1, Created: time.Now()},

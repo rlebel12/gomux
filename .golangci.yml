@@ -61,6 +61,8 @@ linters:
           msg: "return errors instead of using panic"
         - pattern: ^exec\.Command\(
           msg: "use exec.CommandContext for cancellation support"
+    exhaustive:
+      default-signifies-exhaustive: true
     depguard:
       rules:
         main:

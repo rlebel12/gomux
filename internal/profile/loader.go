@@ -124,7 +124,7 @@ func convertWindows(windows []yamlWindow) []gomux.Window {
 // convertPanes converts YAML pane entries to domain Pane types.
 func convertPanes(panes []yamlPane) []gomux.Pane {
 	if len(panes) == 0 {
-		return nil
+		return []gomux.Pane{}
 	}
 	result := make([]gomux.Pane, len(panes))
 	for i, p := range panes {
