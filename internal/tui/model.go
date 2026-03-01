@@ -14,7 +14,8 @@ import (
 // Model represents the Bubbletea TUI model with two views: list and input.
 type Model struct {
 	sessions  []gomux.Session
-	result    string
+	profiles  []gomux.Profile
+	result    gomux.Selection
 	err       string
 	warning   string
 	textInput textinput.Model
@@ -23,14 +24,15 @@ type Model struct {
 	quitting  bool
 }
 
-// newModel creates a new Model with the provided sessions.
-func newModel(sessions []gomux.Session) *Model {
+// newModel creates a new Model with the provided sessions and profiles.
+func newModel(sessions []gomux.Session, profiles []gomux.Profile) *Model {
 	ti := textinput.New()
 	ti.Placeholder = "session name"
 	ti.Focus()
 
 	return &Model{
 		sessions:  sessions,
+		profiles:  profiles,
 		cursor:    0,
 		inputMode: false,
 		textInput: ti,
@@ -66,14 +68,24 @@ func (m *Model) View() string {
 	return m.renderListView()
 }
 
-// Result returns the selected or entered session name.
-func (m *Model) Result() string {
+// Result returns the selected session or profile as a Selection.
+func (m *Model) Result() gomux.Selection {
 	return m.result
 }
 
 // Quitting returns whether the user quit without selecting.
 func (m *Model) Quitting() bool {
 	return m.quitting
+}
+
+// totalItems returns the total number of selectable items across both sections.
+func (m *Model) totalItems() int {
+	return len(m.sessions) + len(m.profiles)
+}
+
+// isProfileCursor returns true if the current cursor is in the profile section.
+func (m *Model) isProfileCursor() bool {
+	return m.cursor >= len(m.sessions)
 }
 
 // handleListKey handles key messages in list view mode.
@@ -101,8 +113,14 @@ func (m *Model) handleListKey(msg tea.KeyMsg) (*Model, tea.Cmd) {
 		m.moveCursorUp()
 
 	case tea.KeyEnter:
-		if len(m.sessions) > 0 && m.cursor < len(m.sessions) {
-			m.result = m.sessions[m.cursor].Name
+		if m.totalItems() > 0 && m.cursor < m.totalItems() {
+			if m.isProfileCursor() {
+				profileIdx := m.cursor - len(m.sessions)
+				m.result = gomux.Selection{Name: m.profiles[profileIdx].Name, IsProfile: true}
+			} else {
+				m.result = gomux.Selection{Name: m.sessions[m.cursor].Name, IsProfile: false}
+			}
+
 			return m, tea.Quit
 		}
 
@@ -122,7 +140,7 @@ func (m *Model) handleInputKey(msg tea.KeyMsg) (*Model, tea.Cmd) {
 		// Validate and submit if valid
 		value := m.textInput.Value()
 		if m.err == "" && value != "" {
-			m.result = value
+			m.result = gomux.Selection{Name: value, IsProfile: false}
 			return m, tea.Quit
 		}
 		// Blocked by error or empty value
@@ -178,7 +196,7 @@ func (m *Model) validate() {
 
 // moveCursorDown moves the cursor down one position, clamped to list bounds.
 func (m *Model) moveCursorDown() {
-	if m.cursor < len(m.sessions)-1 {
+	if m.cursor < m.totalItems()-1 {
 		m.cursor++
 	}
 }
@@ -204,41 +222,55 @@ func (m *Model) cancelInput() {
 	m.warning = ""
 }
 
-// renderListView renders the list view with session names.
+// renderListView renders the list view with session names and profile section.
 func (m *Model) renderListView() string {
 	var b strings.Builder
 
 	m.renderTitle(&b)
 
-	// Session list
+	// Session section
 	for i, session := range m.sessions {
-		// Cursor glyph
-		if i == m.cursor {
-			b.WriteString(cursorGlyphSelected)
-		} else {
-			b.WriteString(cursorGlyphUnselected)
-		}
+		m.renderListItem(&b, i, session.Name, m.formatMetadata(session))
+	}
 
-		// Session name
-		if i == m.cursor {
-			b.WriteString(selectedStyle().Render(session.Name))
-		} else {
-			b.WriteString(normalStyle().Render(session.Name))
-		}
-
-		b.WriteString("\n")
-
-		// Metadata line
-		b.WriteString("  ")
-
-		metadata := m.formatMetadata(session)
-		b.WriteString(metadataStyle().Render(metadata))
+	// Profile section (only when profiles exist)
+	if len(m.profiles) > 0 {
+		b.WriteString(dividerStyle().Render("── Profiles ──"))
 		b.WriteString("\n\n")
+
+		for i, profile := range m.profiles {
+			cursor := len(m.sessions) + i
+			m.renderListItem(&b, cursor, profile.Name, formatProfileMetadata(profile))
+		}
 	}
 
 	m.renderFooter(&b, "↑↓ navigate · enter attach · n new · q quit")
 
 	return b.String()
+}
+
+// renderListItem writes a single selectable item (session or profile) to the builder.
+func (m *Model) renderListItem(b *strings.Builder, idx int, name, metadata string) {
+	// Cursor glyph
+	if idx == m.cursor {
+		b.WriteString(cursorGlyphSelected)
+	} else {
+		b.WriteString(cursorGlyphUnselected)
+	}
+
+	// Item name
+	if idx == m.cursor {
+		b.WriteString(selectedStyle().Render(name))
+	} else {
+		b.WriteString(normalStyle().Render(name))
+	}
+
+	b.WriteString("\n")
+
+	// Metadata line
+	b.WriteString("  ")
+	b.WriteString(metadataStyle().Render(metadata))
+	b.WriteString("\n\n")
 }
 
 // renderInputView renders the input view for creating a new session.
@@ -287,6 +319,16 @@ func (m *Model) formatMetadata(session gomux.Session) string {
 	parts = append(parts, "created "+relTime)
 
 	return strings.Join(parts, " · ")
+}
+
+// formatProfileMetadata creates the metadata line for a profile.
+func formatProfileMetadata(profile gomux.Profile) string {
+	count := len(profile.Windows)
+	if count == 1 {
+		return "1 window"
+	}
+
+	return fmt.Sprintf("%d windows", count)
 }
 
 // relativeTime returns a human-readable relative time string.
