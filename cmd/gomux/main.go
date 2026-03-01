@@ -6,11 +6,15 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
 
 	"github.com/rlebel12/gomux/internal/gomux"
+	"github.com/rlebel12/gomux/internal/profile"
 	"github.com/rlebel12/gomux/internal/tmux"
 	"github.com/rlebel12/gomux/internal/tui"
 )
+
+const profilesConfigPath = ".config/gomux/profiles.yml"
 
 func main() {
 	if err := run(); err != nil {
@@ -33,26 +37,17 @@ func run() error {
 		sessionName = os.Args[1]
 	}
 
-	// TODO(phase-06): replace noopProfileLoader and noopSessionCreator with real implementations.
-	app := gomux.New(client, tui.NewPicker(), client, noopProfileLoader{}, noopSessionCreator{})
+	configPath := profilesConfigPath
+	if home, err := os.UserHomeDir(); err == nil {
+		configPath = filepath.Join(home, profilesConfigPath)
+	}
+
+	loader := profile.NewLoader(configPath)
+	app := gomux.New(client, tui.NewPicker(), client, loader, client)
 
 	if err := app.Run(ctx, sessionName); err != nil {
 		return fmt.Errorf("run app: %w", err)
 	}
 
-	return nil
-}
-
-// noopProfileLoader is a temporary stub until Phase 06 wires the real ProfileLoader.
-type noopProfileLoader struct{}
-
-func (noopProfileLoader) LoadProfiles(_ context.Context) ([]gomux.Profile, error) {
-	return nil, nil
-}
-
-// noopSessionCreator is a temporary stub until Phase 06 wires the real SessionCreator.
-type noopSessionCreator struct{}
-
-func (noopSessionCreator) CreateSessionFromProfile(_ context.Context, _ gomux.Profile) error {
 	return nil
 }
