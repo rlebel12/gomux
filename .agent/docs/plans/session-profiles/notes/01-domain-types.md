@@ -31,4 +31,4 @@ Added/updated test cases: 16 total
 
 ## Issues
 
-<!-- Problems encountered and how they were resolved -->
+- **main.go build failure**: Updating `gomux.New` signature broke `cmd/gomux/main.go` which still passed the old 3-argument call. Additionally, `tui.Picker.Pick` still had the old signature `(ctx, sessions) (string, error)` and no longer satisfied `SessionPicker`. Resolved by adding temporary stubs in `main.go`: `legacyPicker` adapter wrapping the old `tui.Picker`, `noopProfileLoader`, and `noopSessionCreator`. Both are marked with `TODO(phase-04)` and `TODO(phase-06)` comments for cleanup in the respective phases.
