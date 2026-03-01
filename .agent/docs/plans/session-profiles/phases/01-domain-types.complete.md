@@ -64,10 +64,10 @@ New fakes:
 
 ### Gate: RED
 
-- [ ] Test file updated with new fakes and test cases
-- [ ] All `context.Background()` calls in `gomux_test.go` replaced with `t.Context()`
-- [ ] All new tests FAIL (new types/interfaces don't exist yet)
-- [ ] Existing tests updated for Selection return type (also fail)
+- [x] Test file updated with new fakes and test cases
+- [x] All `context.Background()` calls in `gomux_test.go` replaced with `t.Context()`
+- [x] All new tests FAIL (new types/interfaces don't exist yet)
+- [x] Existing tests updated for Selection return type (also fail)
 
 ---
 
@@ -158,10 +158,10 @@ func New(
 
 ### Gate: GREEN
 
-- [ ] All tests from RED phase now PASS
-- [ ] All existing tests pass with updated signatures
-- [ ] Test command: `go test ./internal/gomux/ -v`
-- [ ] Implementation follows routing logic above
+- [x] All tests from RED phase now PASS
+- [x] All existing tests pass with updated signatures
+- [x] Test command: `go test ./internal/gomux/ -v`
+- [x] Implementation follows routing logic above
 
 ---
 
@@ -177,10 +177,10 @@ func New(
 
 ### Gate: REFACTOR
 
-- [ ] Reviewed for code duplication and extracted common patterns
-- [ ] Variable and function names are clear and descriptive
-- [ ] Error messages use concise verb+object format
-- [ ] Types and interfaces ordered logically in the file
+- [x] Reviewed for code duplication and extracted common patterns
+- [x] Variable and function names are clear and descriptive
+- [x] Error messages use concise verb+object format
+- [x] Types and interfaces ordered logically in the file
 
 ---
 
