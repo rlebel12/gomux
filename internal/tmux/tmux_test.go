@@ -1,11 +1,35 @@
 package tmux
 
 import (
+	"context"
+	"errors"
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/rlebel12/gomux/internal/gomux"
 )
+
+// errSimulatedRunnerFailure is returned by recordingRunner when a call matches errOnCall.
+var errSimulatedRunnerFailure = errors.New("simulated runner failure")
+
+// recordingRunner captures each call's args for assertion.
+// errOnCall specifies the 0-indexed call number on which to return an error (-1 for never).
+type recordingRunner struct {
+	calls     [][]string
+	errOnCall int
+}
+
+func (r *recordingRunner) run(_ context.Context, _ string, args ...string) error {
+	callIdx := len(r.calls)
+	r.calls = append(r.calls, args)
+
+	if r.errOnCall >= 0 && callIdx == r.errOnCall {
+		return fmt.Errorf("call %d: %w", callIdx, errSimulatedRunnerFailure)
+	}
+
+	return nil
+}
 
 func TestParseSessions(t *testing.T) {
 	t.Parallel()
@@ -154,6 +178,242 @@ func TestParseSessionsErrors(t *testing.T) {
 				t.Errorf("expected error to contain %q, got %q", tt.errContains, err.Error())
 			}
 		})
+	}
+}
+
+func TestCreateSessionFromProfile(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		profile      gomux.Profile
+		expectedCmds [][]string
+	}{
+		{
+			name: "single_window_no_command",
+			profile: gomux.Profile{
+				Name: "dev",
+				Windows: []gomux.Window{
+					{Name: "main", Dir: "/home/rob"},
+				},
+			},
+			expectedCmds: [][]string{
+				{"new-session", "-d", "-s", "dev", "-n", "main", "-c", "/home/rob"},
+				{"select-window", "-t", "dev:0"},
+			},
+		},
+		{
+			name: "single_window_with_command",
+			profile: gomux.Profile{
+				Name: "dev",
+				Windows: []gomux.Window{
+					{Name: "editor", Dir: "/home/rob", Command: "nvim"},
+				},
+			},
+			expectedCmds: [][]string{
+				{"new-session", "-d", "-s", "dev", "-n", "editor", "-c", "/home/rob"},
+				{"send-keys", "-t", "dev:0", "nvim", "Enter"},
+				{"select-window", "-t", "dev:0"},
+			},
+		},
+		{
+			name: "multiple_windows",
+			profile: gomux.Profile{
+				Name: "dev",
+				Windows: []gomux.Window{
+					{Name: "editor", Dir: "/home/rob"},
+					{Name: "server", Dir: "/srv"},
+				},
+			},
+			expectedCmds: [][]string{
+				{"new-session", "-d", "-s", "dev", "-n", "editor", "-c", "/home/rob"},
+				{"new-window", "-t", "dev", "-n", "server", "-c", "/srv"},
+				{"select-window", "-t", "dev:0"},
+			},
+		},
+		{
+			name: "window_with_panes",
+			profile: gomux.Profile{
+				Name: "dev",
+				Windows: []gomux.Window{
+					{
+						Name: "main",
+						Dir:  "/home/rob",
+						Panes: []gomux.Pane{
+							{Dir: "/home/rob/a", Split: "horizontal"},
+							{Dir: "/home/rob/b", Split: "vertical"},
+						},
+					},
+				},
+			},
+			expectedCmds: [][]string{
+				{"new-session", "-d", "-s", "dev", "-n", "main", "-c", "/home/rob"},
+				{"split-window", "-h", "-t", "dev:0", "-c", "/home/rob/a"},
+				{"split-window", "-v", "-t", "dev:0", "-c", "/home/rob/b"},
+				{"select-window", "-t", "dev:0"},
+			},
+		},
+		{
+			name: "horizontal_split",
+			profile: gomux.Profile{
+				Name: "dev",
+				Windows: []gomux.Window{
+					{
+						Name: "main",
+						Dir:  "/home/rob",
+						Panes: []gomux.Pane{
+							{Dir: "/dir", Split: "horizontal"},
+						},
+					},
+				},
+			},
+			expectedCmds: [][]string{
+				{"new-session", "-d", "-s", "dev", "-n", "main", "-c", "/home/rob"},
+				{"split-window", "-h", "-t", "dev:0", "-c", "/dir"},
+				{"select-window", "-t", "dev:0"},
+			},
+		},
+		{
+			name: "vertical_split",
+			profile: gomux.Profile{
+				Name: "dev",
+				Windows: []gomux.Window{
+					{
+						Name: "main",
+						Dir:  "/home/rob",
+						Panes: []gomux.Pane{
+							{Dir: "/dir", Split: "vertical"},
+						},
+					},
+				},
+			},
+			expectedCmds: [][]string{
+				{"new-session", "-d", "-s", "dev", "-n", "main", "-c", "/home/rob"},
+				{"split-window", "-v", "-t", "dev:0", "-c", "/dir"},
+				{"select-window", "-t", "dev:0"},
+			},
+		},
+		{
+			name: "default_split_is_vertical",
+			profile: gomux.Profile{
+				Name: "dev",
+				Windows: []gomux.Window{
+					{
+						Name: "main",
+						Dir:  "/home/rob",
+						Panes: []gomux.Pane{
+							{Dir: "/dir", Split: ""},
+						},
+					},
+				},
+			},
+			expectedCmds: [][]string{
+				{"new-session", "-d", "-s", "dev", "-n", "main", "-c", "/home/rob"},
+				{"split-window", "-v", "-t", "dev:0", "-c", "/dir"},
+				{"select-window", "-t", "dev:0"},
+			},
+		},
+		{
+			name: "full_layout",
+			profile: gomux.Profile{
+				Name: "myapp",
+				Windows: []gomux.Window{
+					{
+						Name:    "editor",
+						Dir:     "/home/rob/code",
+						Command: "nvim",
+						Panes: []gomux.Pane{
+							{Dir: "/home/rob/code/api", Split: "horizontal", Command: "go run ."},
+						},
+					},
+					{
+						Name:    "logs",
+						Dir:     "/var/log",
+						Command: "tail -f app.log",
+					},
+				},
+			},
+			expectedCmds: [][]string{
+				{"new-session", "-d", "-s", "myapp", "-n", "editor", "-c", "/home/rob/code"},
+				{"send-keys", "-t", "myapp:0", "nvim", "Enter"},
+				{"split-window", "-h", "-t", "myapp:0", "-c", "/home/rob/code/api"},
+				{"send-keys", "-t", "myapp:0", "go run .", "Enter"},
+				{"new-window", "-t", "myapp", "-n", "logs", "-c", "/var/log"},
+				{"send-keys", "-t", "myapp:1", "tail -f app.log", "Enter"},
+				{"select-window", "-t", "myapp:0"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			runner := &recordingRunner{errOnCall: -1}
+			client := &Client{runCmd: runner.run}
+
+			err := client.CreateSessionFromProfile(t.Context(), tt.profile)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if len(runner.calls) != len(tt.expectedCmds) {
+				t.Fatalf("expected %d commands, got %d: %v", len(tt.expectedCmds), len(runner.calls), runner.calls)
+			}
+
+			for i, expectedArgs := range tt.expectedCmds {
+				gotArgs := runner.calls[i]
+				if len(gotArgs) != len(expectedArgs) {
+					t.Errorf("command[%d]: expected args %v, got %v", i, expectedArgs, gotArgs)
+					continue
+				}
+
+				for j, arg := range expectedArgs {
+					if gotArgs[j] != arg {
+						t.Errorf("command[%d][%d]: expected %q, got %q (full: expected=%v got=%v)",
+							i, j, arg, gotArgs[j], expectedArgs, gotArgs)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestCreateSessionFromProfileKillsOnError(t *testing.T) {
+	t.Parallel()
+
+	// Profile with enough commands to have a 3rd call (index 2)
+	profile := gomux.Profile{
+		Name: "dev",
+		Windows: []gomux.Window{
+			{Name: "editor", Dir: "/home/rob", Command: "nvim"},
+			{Name: "server", Dir: "/srv"},
+		},
+	}
+	// Commands: new-session(0), send-keys(1), new-window(2) <- fails, then kill-session attempted
+	runner := &recordingRunner{errOnCall: 2}
+	client := &Client{runCmd: runner.run}
+
+	err := client.CreateSessionFromProfile(t.Context(), profile)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	if !contains(err.Error(), "dev") {
+		t.Errorf("expected error to contain profile name %q, got %q", "dev", err.Error())
+	}
+
+	// Verify kill-session was attempted after failure
+	foundKill := false
+	for _, call := range runner.calls {
+		if len(call) >= 3 && call[0] == "kill-session" && call[1] == "-t" && call[2] == "dev" {
+			foundKill = true
+			break
+		}
+	}
+
+	if !foundKill {
+		t.Errorf("expected kill-session -t dev to be called for cleanup, got calls: %v", runner.calls)
 	}
 }
 
