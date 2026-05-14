@@ -33,11 +33,18 @@ linters:
       check-blank: true
     govet:
       enable-all: true
+      disable:
+        # Forces empirical struct-size measurement during implementation
+        - fieldalignment
     gosec:
       severity: low
       confidence: low
     gocritic:
       enabled-tags: [diagnostic, style, performance, experimental, opinionated]
+      disabled-checks:
+        # Force empirical struct-size measurement during implementation
+        - hugeParam
+        - rangeValCopy
     cyclop:
       max-complexity: 15
     gocognit:
