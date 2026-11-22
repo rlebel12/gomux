@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"testing"
 	"time"
 
@@ -12,6 +13,16 @@ import (
 
 // errSimulatedRunnerFailure is returned by recordingRunner when a call matches errOnCall.
 var errSimulatedRunnerFailure = errors.New("simulated runner failure")
+
+// errSimulatedExecFailure is returned by fake exec functions in tests.
+var errSimulatedExecFailure = errors.New("simulated exec failure")
+
+// Values repeated across the session-entry expectations below.
+const (
+	testTmuxPath     = "tmux"
+	testSwitchClient = "switch-client"
+	testDevTarget    = "=dev"
+)
 
 // recordingRunner captures each call's args for assertion.
 // errOnCall specifies the 0-indexed call number on which to return an error (-1 for never).
@@ -240,7 +251,7 @@ func TestCreateSessionFromProfile(t *testing.T) {
 						Name: "main",
 						Dir:  "/home/rob",
 						Panes: []gomux.Pane{
-							{Dir: "/home/rob/a", Split: "horizontal"},
+							{Dir: "/home/rob/a"}, //nolint:exhaustruct_v5 // only Dir is under test
 							{Dir: "/home/rob/b", Split: "vertical"},
 						},
 					},
@@ -248,7 +259,6 @@ func TestCreateSessionFromProfile(t *testing.T) {
 			},
 			expectedCmds: [][]string{
 				{"new-session", "-d", "-s", "dev", "-n", "main", "-c", "/home/rob"},
-				{"split-window", "-h", "-t", "dev:0", "-c", "/home/rob/a"},
 				{"split-window", "-v", "-t", "dev:0", "-c", "/home/rob/b"},
 				{"select-window", "-t", "dev:0"},
 			},
@@ -262,6 +272,7 @@ func TestCreateSessionFromProfile(t *testing.T) {
 						Name: "main",
 						Dir:  "/home/rob",
 						Panes: []gomux.Pane{
+							{}, //nolint:exhaustruct_v5 // zero-value pane: nothing but position matters
 							{Dir: "/dir", Split: "horizontal"},
 						},
 					},
@@ -282,6 +293,7 @@ func TestCreateSessionFromProfile(t *testing.T) {
 						Name: "main",
 						Dir:  "/home/rob",
 						Panes: []gomux.Pane{
+							{}, //nolint:exhaustruct_v5 // zero-value pane: nothing but position matters
 							{Dir: "/dir", Split: "vertical"},
 						},
 					},
@@ -302,6 +314,7 @@ func TestCreateSessionFromProfile(t *testing.T) {
 						Name: "main",
 						Dir:  "/home/rob",
 						Panes: []gomux.Pane{
+							{}, //nolint:exhaustruct_v5 // zero-value pane: nothing but position matters
 							{Dir: "/dir", Split: ""},
 						},
 					},
@@ -336,7 +349,6 @@ func TestCreateSessionFromProfile(t *testing.T) {
 			expectedCmds: [][]string{
 				{"new-session", "-d", "-s", "myapp", "-n", "editor", "-c", "/home/rob/code"},
 				{"send-keys", "-t", "myapp:0", "nvim", "Enter"},
-				{"split-window", "-h", "-t", "myapp:0", "-c", "/home/rob/code/api"},
 				{"send-keys", "-t", "myapp:0", "go run .", "Enter"},
 				{"new-window", "-t", "myapp", "-n", "logs", "-c", "/var/log"},
 				{"send-keys", "-t", "myapp:1", "tail -f app.log", "Enter"},
@@ -349,7 +361,7 @@ func TestCreateSessionFromProfile(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			runner := &recordingRunner{errOnCall: -1}
+			runner := &recordingRunner{calls: nil, errOnCall: -1}
 			client := &Client{runCmd: runner.run}
 
 			err := client.CreateSessionFromProfile(t.Context(), tt.profile)
@@ -414,6 +426,233 @@ func TestCreateSessionFromProfileKillsOnError(t *testing.T) {
 
 	if !foundKill {
 		t.Errorf("expected kill-session -t dev to be called for cleanup, got calls: %v", runner.calls)
+	}
+}
+
+func TestExecIntoSession(t *testing.T) {
+	tests := []struct {
+		name         string
+		tmuxEnv      string
+		sessionName  string
+		expectedCmds [][]string
+		expectedArgv []string
+	}{
+		{
+			name:         "outside_tmux_attaches_or_creates",
+			tmuxEnv:      "",
+			sessionName:  "dev",
+			expectedCmds: nil,
+			expectedArgv: []string{
+				testTmuxPath, "new-session", "-A", "-s", "dev",
+			},
+		},
+		{
+			name:        "inside_tmux_switches_when_session_exists",
+			tmuxEnv:     "/tmp/tmux-1000/default,2369,0",
+			sessionName: "dev",
+			expectedCmds: [][]string{
+				{cmdHasSession, "-t", testDevTarget},
+			},
+			expectedArgv: []string{
+				testTmuxPath, testSwitchClient, "-t", testDevTarget,
+			},
+		},
+		{
+			name:        "inside_tmux_exact_target_avoids_prefix_match",
+			tmuxEnv:     "/tmp/tmux-1000/default,2369,0",
+			sessionName: "dev-2",
+			expectedCmds: [][]string{
+				{cmdHasSession, "-t", "=dev-2"},
+			},
+			expectedArgv: []string{
+				testTmuxPath, testSwitchClient, "-t", "=dev-2",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("TMUX", tt.tmuxEnv)
+
+			runner := &recordingRunner{calls: nil, errOnCall: -1}
+			var gotPath string
+			var gotArgv []string
+
+			client := &Client{
+				runCmd:   runner.run,
+				tmuxPath: testTmuxPath,
+				execFn: func(path string, argv, _ []string) error {
+					gotPath = path
+					gotArgv = argv
+
+					return nil
+				},
+			}
+
+			if err := client.ExecIntoSession(t.Context(), tt.sessionName); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			assertCalls(t, runner.calls, tt.expectedCmds)
+
+			if gotPath != testTmuxPath {
+				t.Errorf("expected exec path %q, got %q", testTmuxPath, gotPath)
+			}
+
+			assertCalls(t, [][]string{gotArgv}, [][]string{tt.expectedArgv})
+		})
+	}
+}
+
+func TestExecIntoSessionCreatesMissingSessionInsideTmux(t *testing.T) {
+	t.Setenv("TMUX", "/tmp/tmux-1000/default,2369,0")
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get working directory: %v", err)
+	}
+
+	// Call 0 (has-session) fails: the session does not exist yet.
+	runner := &recordingRunner{calls: nil, errOnCall: 0}
+	var gotArgv []string
+
+	client := &Client{
+		runCmd:   runner.run,
+		tmuxPath: testTmuxPath,
+		execFn: func(_ string, argv, _ []string) error {
+			gotArgv = argv
+
+			return nil
+		},
+	}
+
+	if err := client.ExecIntoSession(t.Context(), "dev"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	assertCalls(t, runner.calls, [][]string{
+		{cmdHasSession, "-t", testDevTarget},
+		{"new-session", "-d", "-s", "dev", "-c", cwd},
+	})
+
+	assertCalls(t, [][]string{gotArgv}, [][]string{{testTmuxPath, testSwitchClient, "-t", testDevTarget}})
+}
+
+func TestExecIntoSessionReportsCreateFailure(t *testing.T) {
+	t.Setenv("TMUX", "/tmp/tmux-1000/default,2369,0")
+
+	// Both the existence check and the create fail, so the session cannot be entered.
+	var calls [][]string
+
+	runner := func(_ context.Context, _ string, args ...string) error {
+		calls = append(calls, args)
+
+		return errSimulatedRunnerFailure
+	}
+
+	execCalled := false
+
+	client := &Client{
+		runCmd:   runner,
+		tmuxPath: testTmuxPath,
+		execFn: func(_ string, _, _ []string) error {
+			execCalled = true
+
+			return nil
+		},
+	}
+
+	err := client.ExecIntoSession(t.Context(), "dev")
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	if !contains(err.Error(), "create session") {
+		t.Errorf("expected error to mention session creation, got %q", err.Error())
+	}
+
+	if len(calls) != 2 {
+		t.Errorf("expected has-session then new-session, got %v", calls)
+	}
+
+	if execCalled {
+		t.Error("expected no client switch when session creation fails")
+	}
+}
+
+func TestExecIntoSessionSwitchesWhenSessionAlreadyExists(t *testing.T) {
+	t.Setenv("TMUX", "/tmp/tmux-1000/default,2369,0")
+
+	// Every call succeeds: the session is already there to re-attach to.
+	runner := &recordingRunner{calls: nil, errOnCall: -1}
+	switched := false
+
+	client := &Client{
+		runCmd:   runner.run,
+		tmuxPath: testTmuxPath,
+		execFn: func(_ string, argv, _ []string) error {
+			switched = argv[1] == "switch-client"
+
+			return nil
+		},
+	}
+
+	if err := client.ExecIntoSession(t.Context(), "dev"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	assertCalls(t, runner.calls, [][]string{{cmdHasSession, "-t", "=dev"}})
+
+	if !switched {
+		t.Error("expected a client switch when the session already exists")
+	}
+}
+
+func TestExecIntoSessionExecError(t *testing.T) {
+	t.Setenv("TMUX", "")
+
+	client := &Client{
+		runCmd:   (&recordingRunner{calls: nil, errOnCall: -1}).run,
+		tmuxPath: testTmuxPath,
+		execFn:   func(_ string, _, _ []string) error { return errSimulatedExecFailure },
+	}
+
+	err := client.ExecIntoSession(t.Context(), "dev")
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	if !errors.Is(err, errSimulatedExecFailure) {
+		t.Errorf("expected error to wrap %v, got %v", errSimulatedExecFailure, err)
+	}
+
+	if !contains(err.Error(), "dev") {
+		t.Errorf("expected error to contain session name %q, got %q", "dev", err.Error())
+	}
+}
+
+// assertCalls compares recorded command argument lists against expectations.
+func assertCalls(t *testing.T, got, expected [][]string) {
+	t.Helper()
+
+	if len(got) != len(expected) {
+		t.Fatalf("expected %d commands, got %d: %v", len(expected), len(got), got)
+	}
+
+	for i, expectedArgs := range expected {
+		gotArgs := got[i]
+		if len(gotArgs) != len(expectedArgs) {
+			t.Errorf("command[%d]: expected args %v, got %v", i, expectedArgs, gotArgs)
+
+			continue
+		}
+
+		for j, arg := range expectedArgs {
+			if gotArgs[j] != arg {
+				t.Errorf("command[%d][%d]: expected %q, got %q (full: expected=%v got=%v)",
+					i, j, arg, gotArgs[j], expectedArgs, gotArgs)
+			}
+		}
 	}
 }
 

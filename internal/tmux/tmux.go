@@ -19,11 +19,24 @@ import (
 // commandRunner executes a tmux subcommand and returns any error.
 type commandRunner func(ctx context.Context, tmuxPath string, args ...string) error
 
+// execFunc replaces the current process with the given command.
+//
+// It is a struct field rather than a direct syscall so tests can observe the
+// argv without replacing the test binary.
+type execFunc func(path string, argv, env []string) error
+
 var (
 	// ErrInvalidFieldCount is returned when a line doesn't have the expected number of fields.
 	ErrInvalidFieldCount = errors.New("invalid field count")
 	// ErrInvalidAttachedFlag is returned when the attached flag is not 0 or 1.
 	ErrInvalidAttachedFlag = errors.New("invalid attached flag")
+)
+
+// tmux subcommands used when entering a session.
+const (
+	cmdHasSession   = "has-session"
+	cmdNewSession   = "new-session"
+	cmdSwitchClient = "switch-client"
 )
 
 // formatString is the tmux list-sessions format string for parsing session data.
@@ -112,6 +125,7 @@ func parseSessions(output string) ([]gomux.Session, error) {
 // Client provides integration with the tmux command-line tool.
 type Client struct {
 	runCmd   commandRunner
+	execFn   execFunc
 	tmuxPath string
 }
 
@@ -128,6 +142,7 @@ func NewClient() (*Client, error) {
 	return &Client{
 		tmuxPath: tmuxPath,
 		runCmd:   defaultCommandRunner,
+		execFn:   syscall.Exec,
 	}, nil
 }
 
@@ -179,24 +194,65 @@ func (c *Client) ListSessions(ctx context.Context) ([]gomux.Session, error) {
 	return sessions, nil
 }
 
-// ExecIntoSession replaces the current process with tmux attach-or-create for the given session.
+// ExecIntoSession replaces the current process with tmux, entering the given session.
 //
-// Uses syscall.Exec to replace the current process with tmux. On success, this function
-// never returns (the process is replaced). The error return path only executes on failure.
+// On success this function never returns (the process is replaced by tmux); the
+// error return path only executes on failure.
 //
-// The -A flag causes tmux to attach if the session exists, or create it if it doesn't.
-func (c *Client) ExecIntoSession(_ context.Context, sessionName string) error {
-	args := []string{"tmux", "new-session", "-A", "-s", sessionName}
-	environ := os.Environ()
+// Outside tmux a single `new-session -A` is used, which attaches to the session
+// if it exists and creates it otherwise.
+//
+// Inside tmux a nested client is impossible - tmux refuses one with "sessions
+// should be nested with care" - so the session is created detached when missing
+// and the current client is switched to it instead.
+func (c *Client) ExecIntoSession(ctx context.Context, sessionName string) error {
+	insideTmux := os.Getenv("TMUX") != ""
 
-	//nolint:gosec // tmuxPath is validated via exec.LookPath in NewClient
-	err := syscall.Exec(c.tmuxPath, args, environ)
-	if err != nil {
+	argv := []string{c.tmuxPath, cmdNewSession, "-A", "-s", sessionName}
+
+	if insideTmux {
+		// Switching requires the session to exist, so create it detached first.
+		// The existence check keeps an expected "already exists" case from being
+		// reported as a failure while still surfacing a genuine create error.
+		if err := c.sessionExists(ctx, sessionName); err != nil {
+			if err := c.runCmd(ctx, c.tmuxPath, sessionCreateArgs(sessionName)...); err != nil {
+				return fmt.Errorf("create session %q: %w", sessionName, err)
+			}
+		}
+
+		argv = []string{c.tmuxPath, cmdSwitchClient, "-t", exactSessionTarget(sessionName)}
+	}
+
+	runExec := c.execFn
+	if runExec == nil {
+		runExec = syscall.Exec
+	}
+
+	if err := runExec(c.tmuxPath, argv, os.Environ()); err != nil {
 		return fmt.Errorf("exec into session %q: %w", sessionName, err)
 	}
 
 	// Never reached on success (process replaced)
 	return nil
+}
+
+// sessionCreateArgs builds the detached-session command used inside tmux.
+//
+// The new session inherits the working directory of the process that asked for
+// it, matching what plain `new-session -A` does outside tmux.
+func sessionCreateArgs(sessionName string) []string {
+	dir, err := os.Getwd()
+	if err != nil {
+		return []string{cmdNewSession, "-d", "-s", sessionName}
+	}
+
+	return []string{cmdNewSession, "-d", "-s", sessionName, "-c", dir}
+}
+
+// exactSessionTarget prefixes a session name with tmux's exact-match marker, so
+// switching to "dev" cannot land in "dev-2" through prefix matching.
+func exactSessionTarget(sessionName string) string {
+	return "=" + sessionName
 }
 
 // CreateSessionFromProfile creates a tmux session configured according to the given profile.
@@ -229,6 +285,11 @@ const (
 	splitVertical   = "-v"
 )
 
+// sessionExists reports whether the named session is already known to tmux.
+func (c *Client) sessionExists(ctx context.Context, sessionName string) error {
+	return c.runCmd(ctx, c.tmuxPath, cmdHasSession, "-t", exactSessionTarget(sessionName))
+}
+
 // buildSessionCommands constructs the ordered sequence of tmux argument lists for creating a session.
 func buildSessionCommands(profile gomux.Profile) [][]string {
 	var cmds [][]string
@@ -255,13 +316,17 @@ func buildSessionCommands(profile gomux.Profile) [][]string {
 			cmds = append(cmds, []string{"send-keys", "-t", winTarget, window.Command, "Enter"})
 		}
 
-		// Panes within this window
-		for _, pane := range window.Panes {
-			splitArgs := []string{"split-window", splitFlagFor(pane.Split), "-t", winTarget}
-			if pane.Dir != "" {
-				splitArgs = append(splitArgs, "-c", pane.Dir)
+		// Panes within this window.
+		// The first pane uses the initial pane created by new-session/new-window;
+		// subsequent panes split from it.
+		for j, pane := range window.Panes {
+			if j > 0 {
+				splitArgs := []string{"split-window", splitFlagFor(pane.Split), "-t", winTarget}
+				if pane.Dir != "" {
+					splitArgs = append(splitArgs, "-c", pane.Dir)
+				}
+				cmds = append(cmds, splitArgs)
 			}
-			cmds = append(cmds, splitArgs)
 
 			if pane.Command != "" {
 				cmds = append(cmds, []string{"send-keys", "-t", winTarget, pane.Command, "Enter"})
